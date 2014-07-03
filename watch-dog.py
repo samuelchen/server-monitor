@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # coding:utf-8
-# by Samuel Chen 
+# by Samuel Chen
 
 import sys
 import os
@@ -10,14 +10,26 @@ from cStringIO import StringIO
 import pycurl
 import urllib
 import json
+from collections import namedtuple
+from sqlalchemy import create_engine
 
 from email import Email
 
 
-emails = [
-	#'sqlmonitoring@gagein.com',
-        'wchen@gagein.com',
-]
+ALL_FAIL_NOTIFICATIONS = {
+	'emails' : [
+		#'sqlmonitoring@gagein.com',
+		'wchen@gagein.com',
+	],
+}
+
+ONE_FAIL_NOTIFICATIONS = {
+	'emails' : [
+	],
+}
+
+ALL_FAIL_ALERTS = []
+ONE_FAIL_ALERTS = []
 
 
 # check point & parameters
@@ -30,7 +42,13 @@ _WEB = {
 		'https://www.gagein.com/challenge?Name=IBM',
 		]
 }
-_CACHE = {}
+
+_CACHE = {
+	# directly modify ./hazel/hazelcli.java to change it
+	'checker': os.getcwd() + '/hazelcli/run.sh',
+	'workpath': os.getcwd() + '/hazelcli',
+}
+
 _SOLR = {
 	'queries': [
 		('http://ec2-54-209-120-195.compute-1.amazonaws.com:3033/gagein/contactac/select?q=*:*&rows=0&wt=json','contactac'),
@@ -51,6 +69,32 @@ _SOLR = {
 	]
 }
 
+# DB connection follow SQLAlchemy standard
+# http://docs.sqlalchemy.org/en/rel_0_9/core/engines.html
+# dialect+driver://username:password@host:port/database
+
+#DBConnParams = namedtuple('DBConnParams', ['type','conn','user','password'])
+_DB_CHECK_KEY = 'Monitor.DB.CheckPoint'
+_DB_CHECK_VALUE = time.strftime('%Y%m%d%H%M')
+_DB = {
+	'connections': {
+		'whqa103': 'mysql://gageinadmin:passw0rd@192.168.1.103:3306/gageindb',
+		'whdev1': 'mysql://gageinadmin:passw0rd@192.168.1.90:3306/gageindb',
+	},
+
+	# query params ('db config', 'description', 'query', 'expected effective row count', 'expected result value')
+	'queries': [
+		('whqa103', 'mempreference INSERT', "INSERT IGNORE INTO mempreference (pref_memid, pref_group, pref_key, pref_value) VALUES (-10, 101, '%s', '%s')" % (_DB_CHECK_KEY, _DB_CHECK_VALUE), -1, {} ),
+		('whqa103', 'mempreference SELECT', "SELECT * FROM mempreference where pref_memid=-10 and pref_group=101 and pref_key='%s' LIMIT 2" % _DB_CHECK_KEY, 1, {} ),
+		('whqa103', 'mempreference UPDATE', "UPDATE mempreference SET pref_value = '%s' where pref_memid=-10 and pref_group=101 and pref_key='%s'" % (_DB_CHECK_VALUE, _DB_CHECK_KEY), 1, {} ),
+
+		('whdev1', 'mempreference INSERT', "INSERT IGNORE INTO mempreference (pref_memid, pref_group, pref_key, pref_value) VALUES (-10, 101, '%s', '%s')" % (_DB_CHECK_KEY, _DB_CHECK_VALUE), -1, {} ),
+		('whdev1', 'mempreference SELECT', "SELECT * FROM mempreference where pref_memid=-10 and pref_group=101 and pref_key='%s' LIMIT 2" % _DB_CHECK_KEY, 1, {}),
+		('whdev1', 'mempreference UPDATE', "UPDATE mempreference SET pref_value = '%s' where pref_memid=-10 and pref_group=101 and pref_key='%s'" % (_DB_CHECK_VALUE, _DB_CHECK_KEY), 1, {} ),
+	],
+
+}
+
 
 # list apis in order to get required value.
 # api list has 3 field: 1 is api url, 2 is api name, 3 is api args map
@@ -62,10 +106,10 @@ _SOLR = {
 
 _API = {
 	'apis':[
-		('https://www.gagein.com/svc/login', 'login', {'mem_email':'wchen@gagein.com', 'mem_password':'123456'}),
-		('https://www.gagein.com/svc/member/me/company/get_followed', 'get_followed', {'page':'1'}),
-		('https://www.gagein.com/svc/company/website', 'company_website', {'org_name':'$orgname'}),
-		],	
+		('login', 'POST', 'https://www.gagein.com/svc/login', {'mem_email':'wchen@gagein.com', 'mem_password':'123456'}),
+		('get_followed', 'GET', 'https://www.gagein.com/svc/member/me/company/get_followed',  {'page':'1'}),
+		('company_website', 'POST', 'https://www.gagein.com/svc/company/website', {'org_name':'$orgname'}),
+		],
 	'token':'',
 	'memid':'',
 	'orgname': 'Google',
@@ -84,14 +128,16 @@ _REPORTS = {
 	'cache': [],
 	'solr': [],
 	'api': [],
+	'db': [],
 	'job': [],
 	'dms': [],
 }
 
 
+
 def check_web():
 	all_succeed = True
-	all_fail = False
+	all_fail = True
 	reports = _REPORTS['web']
 	reports.append('')
 	reports.append('========== WEB APP Check ===========')
@@ -100,19 +146,24 @@ def check_web():
 		reports.append('')
 		succeed = check_url(url, reports)
 		all_succeed = all_succeed and succeed
-		all_fail = all_fail or succeed
+		if succeed: all_fail = False
 		# alert if required
 		print succeed and 'Succeed' or 'Fail'
 	reports.append('========== WEB APP END  ===========')
-	
-	# if not all_succeed, alert
+
+	# alert
+	if all_fail:
+		ALL_FAIL_ALERTS.append('All tests FAILED for WEB APP')
+	elif not all_succeed:
+		ONE_FAIL_ALERTS.append('At least one test FAILED for WEB APP')
+
 
 	return all_succeed
 
 
 def check_http():
 	all_succeed = True
-	all_fail = False
+	all_fail = True
 	reports = _REPORTS['http']
 	reports.append('')
 	reports.append('========== HTTP Check ===========')
@@ -121,19 +172,23 @@ def check_http():
 		reports.append('')
 		succeed = check_url(url, reports)
 		all_succeed = all_succeed and succeed
-		all_fail = all_fail or succeed
+		if succeed: all_fail = False
 		# alert if required
 		print succeed and 'Succeed' or 'Fail'
 	reports.append('========== HTTP END  ===========')
-	
-	# if not all_succeed, alert
+
+	# alert
+	if all_fail:
+		ALL_FAIL_ALERTS.append('All tests FAILED for HTTP access')
+	elif not all_succeed:
+		ONE_FAIL_ALERTS.append('At least one test FAILED for HTTP access')
 
 	return all_succeed
 
-def check_url(url, reports, resp_callback=None, data={}):
+def check_url(url, reports, resp_callback=None, data={}, method='GET'):
 	'''
 		url: url to request
-		reports: reports array to append 
+		reports: reports array to append
 		data: data to POST. if specified, will use POST
 		resp_callback: callback function to validat result. taks 1 argument of reponse test.
 	'''
@@ -146,13 +201,13 @@ def check_url(url, reports, resp_callback=None, data={}):
 
 	print '>>>>> checking %s' % url
 	reports.append('check %s' % url)
-	
+
 	rc = None
 	while not succeed:
 		if ti >= ti_max: break
 
 		timeout = _TIMEOUTS[ti]
-		rc = request(url, timeout, data=data)
+		rc = request(url, timeout, data=data, method=method)
 		#print rc
 		error = rc['error']
 		errstr = rc['errstr']
@@ -174,18 +229,50 @@ def check_url(url, reports, resp_callback=None, data={}):
 
 	if succeed and None != resp_callback:
 		succeed = resp_callback(rc['response'])
-	
-	reports.append(succeed and '*** SUCCEED ***' or '*** FAIL ***') 
+
+	reports.append(succeed and '*** SUCCEED ***' or '*** FAIL ***')
 
 	return succeed
 
 
+
 def check_cache():
-	pass
+	all_succeed = True
+	all_fail = False
+	succeed = False
+
+	checker = _CACHE['checker']
+	workpath = _CACHE['workpath']
+	reports = _REPORTS['cache']
+	reports.append('')
+
+
+	reports.append('========== CACHE Check ===========')
+	p = subprocess.Popen([checker], cwd=workpath, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+	rep = p.stdout.readlines()
+	log = p.stderr.read()
+
+	print log
+
+	if rep[-1].startswith('SUCCEED'): succeed = True
+	all_succeed = all_succeed and succeed
+	if not succeed: all_fail = True
+
+	reports.extend(rep)
+	reports.append('========== CACHE END  ===========')
+
+
+	# if not all_succeed, alert
+	if all_fail:
+		ALL_FAIL_ALERTS.append('All tests FAILED for CACHE service')
+	elif not all_succeed:
+		ONE_FAIL_ALERTS.append('At least one test FAILED for CACHE service')
+
+	return all_succeed
 
 def check_solr():
 	all_succeed = True
-	all_fail = False
+	all_fail = True
 	reports = _REPORTS['solr']
 	reports.append('')
 	reports.append('========== Solr Check ===========')
@@ -202,30 +289,34 @@ def check_solr():
 			if num < 10:
 				succeed = False
 		except Exception, ex:
-			print ex
+			print 'Expected exception:', ex
 			succeed = False
-		
+
 		print succeed and 'Succeed validation' or 'Fail validation'
 		return succeed
-		
+
 
 	for url, core in queries:
 		reports.append('')
 		reports.append('*** CORE %s ***' % core)
-		succeed = check_url(url, reports, lambda resp: validate_result(resp, core))
+		succeed = check_url(url, reports, lambda resp: validate_solr(resp, core))
 		all_succeed = all_succeed and succeed
-		all_fail = all_fail or succeed
+		if succeed: all_fail = False
 		# alert if required
 	reports.append('========== SOLR END  ===========')
-	
-	# if not all_succeed, alert
+
+	# alert
+	if all_fail:
+		ALL_FAIL_ALERTS.append('All tests FAILED for SOLR service')
+	elif not all_succeed:
+		ONE_FAIL_ALERTS.append('At least one test FAILED for SOLR service')
 
 	return all_succeed
 
 
 def check_api():
 	all_succeed = True
-	all_fail = False
+	all_fail = True
 	reports = _REPORTS['api']
 	reports.append('')
 	reports.append('========== API Check ===========')
@@ -236,7 +327,7 @@ def check_api():
 		print 'validating result ... '
 		try:
 			result = json.loads(resp)
-			print result
+			#print result
 			status = result['status']
 			msg = result['msg']
 			print 'API %s got result status:%s  msg:%s' % (api, status, msg)
@@ -252,35 +343,138 @@ def check_api():
 				_API['orgid'] = orgid
 				_API['orgname'] = orgname
 				print 'Get 1st followed organization "%s".' % org_name
-				
+
 			reports.append('API %s got result status:%s  msg:%s' % (api, status, msg))
 		except Exception, ex:
-			print ex
+			print 'Expected exception:', ex
 			succeed = False
-		
+
 		print succeed and 'Succeed validation' or 'Fail validation'
 		return succeed
-		
 
-	for url, api, data in apis:
+
+	for api, method, url, data in apis:
+		print method, api
 		for k, v in data.items():
 			if v.startswith('$'):
 				data[k] = _API[v[1:]]
 				print k, data[k]
 		data['access_token'] = _API['token']
+		print data['access_token']
 
 		reports.append('')
 		reports.append('*** API %s ***' % api)
-		succeed = check_url(url, reports, lambda resp: validate_api(resp, api), data=data)
+		succeed = check_url(url, reports, lambda resp: validate_api(resp, api), data=data, method=method)
 		all_succeed = all_succeed and succeed
-		all_fail = all_fail or succeed
+		if succeed: all_fail = False
 		# alert if required
 	reports.append('========== API END  ===========')
-	
+
 	# if not all_succeed, alert
+	if all_fail:
+		ALL_FAIL_ALERTS.append('All tests FAILED for API service')
+	elif not all_succeed:
+		ONE_FAIL_ALERTS.append('At least one test FAILED for API service')
 
 	return all_succeed
 
+
+
+def check_db():
+	all_succeed = True
+	all_fail = True
+	reports = _REPORTS['db']
+	reports.append('')
+	reports.append('========== DB Check ===========')
+	connections = _DB['connections']
+	queries = _DB['queries']
+
+	def validate_query(query):
+		succeed = True
+
+		q = query.strip().split()
+		if len(q) < 2:
+			print 'Warn: query is too short.'
+			#return False
+
+		msg = ''
+		cmd = q[0].upper()
+		if cmd == 'SELECT':
+			if not query.upper().find(' LIMIT '):
+				print ('No "LIMIT" clause found in "SELECT".')
+				reports.append('No "LIMIT" clause found in "SELECT".')
+				succeed = False
+		elif cmd == 'INSERT':
+			if not query.upper().find(' WHERE '):
+				print ('No "WHERE" clause found in "INSERT".')
+				reports.append('No "WHERE" clause found in "INSERT".')
+				succeed = False
+		elif cmd == 'UPDATE':
+			if not query.upper().find(' WHERE '):
+				print ('No "WHERE" clause found in "UPDATE".')
+				reports.append('No "WHERE" clause found in "UPDATE".')
+				succeed = False
+		elif cmd == 'DELETE':
+			if not query.upper().find(' WHERE '):
+				print ('No "WHERE" clause found in "DELETE".')
+				reports.append('No "WHERE" clause found in "DELETE".')
+				succeed = False
+		elif cmd == 'SHOW':
+			msg = 'No error'
+			pass
+		else:
+			msg = 'No error'
+			pass
+
+		print succeed and 'Succeed validating query' or 'Fail validating query'
+		return succeed
+
+
+	for dbconf, desc, query, expected_rowcount, expected_values in queries:
+		reports.append('')
+		reports.append('*** DB %s - %s ***' % (dbconf, desc))
+		succeed = True
+
+		conn = None
+		try:
+			engine = create_engine(connections[dbconf])
+			conn = engine.connect()
+			print '>> validating %s on "%s"... ' % (desc, dbconf)
+			succeed = validate_query(query)
+
+			rs = conn.execute(query)
+			if expected_rowcount >= 0 and rs.rowcount != expected_rowcount:
+				reports.append('Expected effecting %d row(s) but got %d row(s)' % (expected_rowcount, rs.rowcount))
+				succeed = False
+
+			if expected_values:
+				for k, v in expected_values.items():
+					if rs[k] != v:
+						reports.append('col "%s" is expected "%s" but got "%s"' % (k, str(v), str(rs[k])))
+						succeed = False
+
+			print succeed and 'Succeed validating result' or 'Fail validating result'
+			reports.append(succeed and 'SUCCEED' or 'SUCCEED')
+		except Exception,ex:
+			succeed = False
+			reports.append('Exception: %s' % ex)
+			print 'Exception:', ex
+		finally:
+			if conn: conn.close()
+
+		all_succeed = all_succeed and succeed
+		if succeed: all_fail = False
+		# alert if required
+
+	reports.append('========== DB END  ===========')
+
+	# if not all_succeed, alert
+	if all_fail:
+		ALL_FAIL_ALERTS.append('All tests FAILED for DB service')
+	elif not all_succeed:
+		ONE_FAIL_ALERTS.append('At least one test FAILED for DB service')
+
+	return all_succeed
 
 
 def check_job():
@@ -292,23 +486,31 @@ def check_dms():
 
 
 def check():
-	#print check_http() and '@@@  HTTP SUCCEED' or '@@@ HTTP FAIL'
-	#print check_web() and '@@@ WEB SUCCEED' or '@@@ WEB FAIL'
-	#print check_solr() and '@@@ SOLR SUCCEED' or '@@@ SOLR FAIL'
+	print check_http() and '@@@  HTTP SUCCEED' or '@@@ HTTP FAIL'
+	print check_web() and '@@@ WEB SUCCEED' or '@@@ WEB FAIL'
+	print check_solr() and '@@@ SOLR SUCCEED' or '@@@ SOLR FAIL'
 	print check_api() and '@@@ API SUCCEED' or '@@@ API FAIL'
+	print check_db() and '@@@ DB SUCCEED' or '@@@ DB FAIL'
+	print check_cache() and '@@@ CACHE SUCCEED' or '@@@ CACHE FAIL'
 
-	for rep in _REPORTS.values(): 
+	for rep in _REPORTS.values():
 		for r in rep: print r
+	print "All fail alerts"
+	for alert in ALL_FAIL_ALERTS:
+		print alert
+	print "One fail alerts"
+	for alert in ONE_FAIL_ALERTS:
+		print alert
 
-#	if len(alerts) > 0:
-#		alerts.insert(0, ','.join(subjects))
+#	if len(_ALERTS) > 0:
+#		_ALERTS.insert(0, ','.join(subjects))
 #		os.system('ps aux | unix2dos > ps-aux.txt')
 #		os.system('top -b -n1 | unix2dos > top.txt')
 #		attachments = []
 #		attachments.append(('ps-aux.txt','./ps-aux.txt'))
 #		attachments.append(('top.txt','./top.txt'))
-#		sendalert(alerts, statics[0], attachments)
-#	
+#		sendalert(_ALERTS, statics[0], attachments)
+#
 #	return status
 
 def sendalert(alerts, hostname, attachments=[]):
@@ -318,17 +520,17 @@ def sendalert(alerts, hostname, attachments=[]):
 	report.writelines(['\t\t Server Performance Alert [%s]\r\n' % hostname, '\r\n\r\n'])
 	for x in alerts[1:]:
 		print x
-		report.writelines([x, '\r\n\r\n']);	
+		report.writelines([x, '\r\n\r\n']);
 	body = report.getvalue()
 	report.close()
 
-	subject = 'Server Performance Alert [%s] [%s] - %s' % (alerts[0], hostname, time.ctime())	
-	
+	subject = 'Server Performance Alert [%s] [%s] - %s' % (alerts[0], hostname, time.ctime())
+
 	email.sender = 'Gagein <noreply@gagein.com>'
 	email.send(emails, subject, body, '', attachments)
 
 
-def request(url, timeout, data={}, **options):
+def request(url, timeout, data={}, method='GET', **options):
 	rc = {'error':0}
 	buf = StringIO()
 	curl = pycurl.Curl()
@@ -339,20 +541,33 @@ def request(url, timeout, data={}, **options):
 	#curl.setopt(pycurl.CONNECTTIMEOUT, 30)
 	curl.setopt(pycurl.TIMEOUT, timeout)
 	curl.setopt(pycurl.WRITEFUNCTION, buf.write)
-		
-	if (data):
+
+	if data:
 		curl.setopt(curl.POSTFIELDS, urllib.urlencode(data))
+
+	if method == 'GET':
+		curl.setopt(curl.HTTPGET, 1)
+	elif method == 'POST':
+		curl.setopt(curl.POST, 1)
+	elif method == 'PUT':
+		curl.setopt(curl.PUT, 1)
+	else:
+		rc['error'] = -1
+		rc['errstr'] = 'HTTP method "%s" is not supported yet' % method
+		print 'ERROR: %s' % rc['errstr']
+		return rc
+
 
 	try:
 		for k,v in options.items():
-			curl.setopt(k, v) 
+			curl.setopt(k, v)
 	except:
-		pass	
-	
+		pass
+
 	try:
 		curl.perform()
 	except Exception, ex:
-		rc['error'] = ex[0]	
+		rc['error'] = ex[0]
 		#print ex
 
 	rc['errstr'] = curl.errstr()
@@ -360,12 +575,12 @@ def request(url, timeout, data={}, **options):
 	rc['time'] = curl.getinfo(curl.TOTAL_TIME)
 	rc['response'] = buf.getvalue()
 	#print rc['response']
-	
-	
+
+
 	buf.close()
 	curl.close()
 	return rc
-	
+
 
 if __name__ == '__main__':
-	check() 
+	check()

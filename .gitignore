@@ -1,4 +1,6 @@
 *.txt
+lib
+lib-cache
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
