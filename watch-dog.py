@@ -15,21 +15,12 @@ from sqlalchemy import create_engine
 
 from email import Email
 
-os.chdir('/home/samuel/work/server-monitor')
+import setting_watch_dog as setting
 
-ALL_FAIL_NOTIFICATIONS = {
-    'emails' : [
-        'sqlmonitoring@gagein.com',
-        'wchen@gagein.com',
-    ],
-}
+os.chdir(setting._WORKDIR)
 
-ONE_FAIL_NOTIFICATIONS = {
-    'emails' : [
-        'sqlmonitoring@gagein.com',
-        'wchen@gagein.com',
-    ],
-}
+ALL_FAIL_NOTIFICATIONS = setting.ALL_FAIL_NOTIFICATIONS
+ONE_FAIL_NOTIFICATIONS = setting.ONE_FAIL_NOTIFICATIONS
 
 ALL_FAIL_ALERTS = []
 ONE_FAIL_ALERTS = []
@@ -37,93 +28,21 @@ ONE_FAIL_ALERTS = []
 
 # check point & parameters
 
-_HTTP = {
-    'urls':['http://www.gagein.com', 'https://www.gagein.com/about']
-}
-_WEB = {
-    'urls':['https://www.gagein.com/challenge',
-        'https://www.gagein.com/challenge?Name=IBM',
-        ]
-}
+_HTTP = setting._HTTP
+_WEB = setting._WEB
+_CACHE = setting._CACHE
+_SOLR = setting._SOLR
+_DB_CHECK_KEY = setting._DB_CHECK_KEY
+_DB_CHECK_VALUE = setting._DB_CHECK_VALUE
+_DB = setting._DB
+_API = setting._API
+_JOB = setting._JOB
+_DMS = setting._DMS
 
-_CACHE = {
-    # directly modify ./hazel/hazelcli.java to change it
-    'checker': os.getcwd() + '/hazelcli/run.sh',
-    'workpath': os.getcwd() + '/hazelcli',
-}
-
-_SOLR = {
-    'queries': [
-        ('http://ec2-54-209-120-195.compute-1.amazonaws.com:3033/gagein/contactac/select?q=*:*&rows=0&wt=json','contactac'),
-        ('http://ec2-54-209-120-195.compute-1.amazonaws.com:3033/gagein/contacts/select?q=*:*&rows=0&wt=json','contacts'),
-        #('http://ec2-54-209-120-195.compute-1.amazonaws.com:3033/gagein/core_agents/select?q=*:*&rows=0&wt=json','core_agents'),
-        #('http://ec2-54-209-120-195.compute-1.amazonaws.com:3033/gagein/core_orgevents/select?q=*:*&rows=0&wt=json','core_orgevents'),
-        #('http://ec2-54-209-120-195.compute-1.amazonaws.com:3033/gagein/core_personevents/select?q=*:*&rows=0&wt=json','core_personevents'),
-        #('http://ec2-54-209-120-195.compute-1.amazonaws.com:3033/gagein/core_updates/select?q=*:*&rows=0&wt=json','core_updates'),
-        #('http://ec2-54-209-120-195.compute-1.amazonaws.com:3033/gagein/followed_contacts/select?q=*:*&rows=0&wt=json','followed_contacts'),
-        #('http://ec2-54-209-120-195.compute-1.amazonaws.com:3033/gagein/followed_orgs/select?q=*:*&rows=0&wt=json','followed_orgs'),
-        #('http://ec2-54-209-120-195.compute-1.amazonaws.com:3033/gagein/member/select?q=*:*&rows=0&wt=json','member'),
-        #('http://ec2-54-209-120-195.compute-1.amazonaws.com:3033/gagein/org_location/select?q=*:*&rows=0&wt=json','org_location'),
-        #('http://ec2-54-209-120-195.compute-1.amazonaws.com:3033/gagein/org_name_mapping/select?q=*:*&rows=0&wt=json','org_name_mapping'),
-        #('http://ec2-54-209-120-195.compute-1.amazonaws.com:3033/gagein/orgac/select?q=*:*&rows=0&wt=json','orgac'),
-        #('http://ec2-54-209-120-195.compute-1.amazonaws.com:3033/gagein/organization/select?q=*:*&rows=0&wt=json','organization'),
-        #('http://ec2-54-209-120-195.compute-1.amazonaws.com:3033/gagein/search_keywords/select?q=*:*&rows=0&wt=json','search_keywords'),
-        #('http://ec2-54-209-120-195.compute-1.amazonaws.com:3033/gagein/updates/select?q=*:*&rows=0&wt=json','updates'),
-    ]
-}
-
-# DB connection follow SQLAlchemy standard
-# http://docs.sqlalchemy.org/en/rel_0_9/core/engines.html
-# dialect+driver://username:password@host:port/database
-
-#DBConnParams = namedtuple('DBConnParams', ['type','conn','user','password'])
-_DB_CHECK_KEY = 'Monitor.DB.CheckPoint'
-_DB_CHECK_VALUE = time.strftime('%Y%m%d%H%M')
-_DB = {
-    'connections': {
-        'whqa103': 'mysql://gageinadmin:passw0rd@192.168.1.103:3306/gageindb',
-        'whdev1': 'mysql://gageinadmin:passw0rd@192.168.1.90:3306/gageindb',
-    },
-
-    # query params ('db config', 'description', 'query', 'expected effective row count', 'expected result value')
-    'queries': [
-        ('whqa103', 'mempreference INSERT', "INSERT IGNORE INTO mempreference (pref_memid, pref_group, pref_key, pref_value) VALUES (-10, 101, '%s', '%s')" % (_DB_CHECK_KEY, _DB_CHECK_VALUE), -1, {} ),
-        ('whqa103', 'mempreference SELECT', "SELECT * FROM mempreference where pref_memid=-10 and pref_group=101 and pref_key='%s' LIMIT 2" % _DB_CHECK_KEY, 1, {} ),
-        ('whqa103', 'mempreference UPDATE', "UPDATE mempreference SET pref_value = '%s' where pref_memid=-10 and pref_group=101 and pref_key='%s'" % (_DB_CHECK_VALUE, _DB_CHECK_KEY), 1, {} ),
-
-        #('whdev1', 'mempreference INSERT', "INSERT IGNORE INTO mempreference (pref_memid, pref_group, pref_key, pref_value) VALUES (-10, 101, '%s', '%s')" % (_DB_CHECK_KEY, _DB_CHECK_VALUE), -1, {} ),
-        #('whdev1', 'mempreference SELECT', "SELECT * FROM mempreference where pref_memid=-10 and pref_group=101 and pref_key='%s' LIMIT 2" % _DB_CHECK_KEY, 1, {}),
-        #('whdev1', 'mempreference UPDATE', "UPDATE mempreference SET pref_value = '%s' where pref_memid=-10 and pref_group=101 and pref_key='%s'" % (_DB_CHECK_VALUE, _DB_CHECK_KEY), 1, {} ),
-    ],
-
-}
-
-
-# list apis in order to get required value.
-# api list has 3 field: 1 is api url, 2 is api name, 3 is api args map
-# access_token will be passed to each api after 'login' called. so login must be in first one.
-# retrived value can set when validate_api() calling. The value can be used if specifed in args map with $.
-#
-# e.g. ('https://www.gagein.com/svc/func1', 'func1', {'referral_by':'$memid'}
-# here the $memid will be replaced by _API['memid'] automatically.
-
-_API = {
-    'apis':[
-        ('login', 'POST', 'https://www.gagein.com/svc/login', {'mem_email':'wchen@gagein.com', 'mem_password':'123456'}),
-        #('get_followed', 'GET', 'https://www.gagein.com/svc/member/me/company/get_followed',  {'page':'1'}),
-        #('company_website', 'POST', 'https://www.gagein.com/svc/company/website', {'org_name':'$orgname'}),
-        ],
-    'token':'',
-    'memid':'',
-    'orgname': 'Google',
-}
-_JOB = {}
-_DMS = {}
-
-_UA = 'GageinIn Watch Dog/1.0'
-_TIMEOUTS = [5, 15, 60]     # timeout for retry (second)
-_TIMEOUT_ERRORS = [6, 28]    # error codes for timeout
-_SUCCEED_CODE = [200, ]
+_UA = setting._UA
+_TIMEOUTS = setting._TIMEOUTS
+_TIMEOUT_ERRORS = setting._TIMEOUT_ERRORS
+_SUCCEED_CODE = setting._SUCCEED_CODE
 
 _REPORTS = {
     'http': [],

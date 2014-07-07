@@ -1,6 +1,8 @@
 *.txt
 lib
 lib-cache
+setting_watch_dog.py
+watch-dog.py.bak
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
