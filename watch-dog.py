@@ -15,17 +15,18 @@ from sqlalchemy import create_engine
 
 from email import Email
 
+os.chdir('/home/samuel/work/server-monitor')
 
 ALL_FAIL_NOTIFICATIONS = {
     'emails' : [
-        #'sqlmonitoring@gagein.com',
+        'sqlmonitoring@gagein.com',
         'wchen@gagein.com',
     ],
 }
 
 ONE_FAIL_NOTIFICATIONS = {
     'emails' : [
-        #'sqlmonitoring@gagein.com',
+        'sqlmonitoring@gagein.com',
         'wchen@gagein.com',
     ],
 }
