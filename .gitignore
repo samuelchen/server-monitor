@@ -1,4 +1,5 @@
 *.txt
+*.class
 lib
 lib-cache
 setting_watch_dog.py

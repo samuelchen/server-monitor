@@ -409,12 +409,12 @@ def check_dms():
 
 def check():
     t1 = time.time()
-    print check_http() and '@@@  HTTP SUCCEED' or '@@@ HTTP FAIL'
-    print check_web() and '@@@ WEB SUCCEED' or '@@@ WEB FAIL'
-    print check_solr() and '@@@ SOLR SUCCEED' or '@@@ SOLR FAIL'
-    print check_api() and '@@@ API SUCCEED' or '@@@ API FAIL'
+    #print check_http() and '@@@  HTTP SUCCEED' or '@@@ HTTP FAIL'
+    #print check_web() and '@@@ WEB SUCCEED' or '@@@ WEB FAIL'
+    #print check_solr() and '@@@ SOLR SUCCEED' or '@@@ SOLR FAIL'
+    #print check_api() and '@@@ API SUCCEED' or '@@@ API FAIL'
     print check_db() and '@@@ DB SUCCEED' or '@@@ DB FAIL'
-    print check_cache() and '@@@ CACHE SUCCEED' or '@@@ CACHE FAIL'
+    #print check_cache() and '@@@ CACHE SUCCEED' or '@@@ CACHE FAIL'
     t2 = time.time()
     print "Used %d seconds" % (t2-t1)
 
@@ -455,7 +455,7 @@ def sendalert(alerts, attachments=[], is_all_fail=False):
 
     subject = '[WARN] At least one tested failed - %s' % time.ctime()
     if is_all_fail:
-        subject = '[SERVE] ALL SERVICE FAILED - %s' % time.ctime()
+        subject = '[SERVE] All test FAILED for at least on service - %s' % time.ctime()
 
     email.sender = 'Gagein <noreply@gagein.com>'
     retries = 3
