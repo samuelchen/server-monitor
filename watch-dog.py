@@ -165,12 +165,16 @@ def check_cache():
 
     checker = _CACHE['checker']
     workpath = _CACHE['workpath']
+    servers = _CACHE['cluster']
+    user = _CACHE['name']
+    passwd = _CACHE['passwd']
+
     reports = _REPORTS['cache']
     reports.append('')
 
 
     reports.append('========== CACHE Check ===========')
-    p = subprocess.Popen([checker], cwd=workpath, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    p = subprocess.Popen([checker, servers, user, passwd], cwd=workpath, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     rep = p.stdout.readlines()
     log = p.stderr.read()
 
@@ -409,25 +413,24 @@ def check_dms():
 
 def check():
     t1 = time.time()
-    #print check_http() and '@@@  HTTP SUCCEED' or '@@@ HTTP FAIL'
-    #print check_web() and '@@@ WEB SUCCEED' or '@@@ WEB FAIL'
-    #print check_solr() and '@@@ SOLR SUCCEED' or '@@@ SOLR FAIL'
-    #print check_api() and '@@@ API SUCCEED' or '@@@ API FAIL'
+    print check_http() and '@@@  HTTP SUCCEED' or '@@@ HTTP FAIL'
+    print check_web() and '@@@ WEB SUCCEED' or '@@@ WEB FAIL'
+    print check_solr() and '@@@ SOLR SUCCEED' or '@@@ SOLR FAIL'
+    print check_api() and '@@@ API SUCCEED' or '@@@ API FAIL'
     print check_db() and '@@@ DB SUCCEED' or '@@@ DB FAIL'
-    #print check_cache() and '@@@ CACHE SUCCEED' or '@@@ CACHE FAIL'
+    print check_cache() and '@@@ CACHE SUCCEED' or '@@@ CACHE FAIL'
     t2 = time.time()
     print "Used %d seconds" % (t2-t1)
 
-    f = open('report.txt', 'w')
+    f = open('watch-dog-report.txt', 'w')
     for rep in _REPORTS.values():
         for line in rep:
             f.write(line)
             f.write('\r\n')
     f.close()
-    # os.system('cat report.txt | unix2dos > ./report1.txt')
 
     attachments = []
-    attachments.append(('report.txt','./report.txt'))
+    attachments.append(('report.txt','./watch-dog-report.txt'))
 
     if  len(ALL_FAIL_ALERTS) > 0:
         print 'sending ALL_FAIL_ALERT ...'
@@ -455,7 +458,7 @@ def sendalert(alerts, attachments=[], is_all_fail=False):
 
     subject = '[WARN] At least one tested failed - %s' % time.ctime()
     if is_all_fail:
-        subject = '[SERVE] All test FAILED for at least on service - %s' % time.ctime()
+        subject = '[SERVE] All TEST FAILED for at least one service - %s' % time.ctime()
 
     email.sender = 'Gagein <noreply@gagein.com>'
     retries = 3

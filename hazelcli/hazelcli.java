@@ -32,6 +32,11 @@ public class hazelcli {
 		    servers = args[0];
 		    log(String.format("cluster servers: %s", servers));
 		}
+		
+		if (args.length >= 3) {
+		    user = args[1];
+		    password = args[2];
+		}
 
 		MemberPreferenceKey key = new MemberPreferenceKey(memid, group, keystr);
 		//MemberPreferenceKey key = new MemberPreferenceKey("-10", "101", "SolrIndex.member");

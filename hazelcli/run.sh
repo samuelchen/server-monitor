@@ -5,6 +5,8 @@
 
 CLASS_PATH=.:./lib-cache/hazelcast-all-3.1.3.jar:./lib/emm_db-1.1-SNAPSHOT.jar:./lib/emm_common-1.1-SNAPSHOT.jar:./lib/gagein_cache-1.0-SNAPSHOT.jar
 HAZEL_CLUSTER=$1
+USER=$2
+PASSWD=$3
 
 if [ "$1" = "-h" ] ; then
 	echo "Usage:"
@@ -21,7 +23,7 @@ if [ $? -eq 0 ]; then
     echo "Succeed compile"
     echo "Running ..."
     #echo "java -classpath $CLASS_PATH hazelcli $HAZEL_CLUSTER"
-    java -classpath $CLASS_PATH hazelcli $HAZEL_CLUSTER
+    java -classpath $CLASS_PATH hazelcli $HAZEL_CLUSTER $USER $PASSWD
 else
     echo "Fail compile"
     exit -1

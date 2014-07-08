@@ -7,5 +7,5 @@ to="sqlmonitoring@gagein.com"
 sub="Server status [$host] - $tm"
 sendmail=./email.py
 
-tsar | unix2dos > "report.txt"
-$sendmail "$to" "$sub" "./report.txt"
+tsar | unix2dos > "server-status.txt"
+$sendmail "$to" "$sub" "./server-status.txt"
