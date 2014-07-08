@@ -4,28 +4,27 @@
 # by samuel
 
 CLASS_PATH=.:./lib-cache/hazelcast-all-3.1.3.jar:./lib/emm_db-1.1-SNAPSHOT.jar:./lib/emm_common-1.1-SNAPSHOT.jar:./lib/gagein_cache-1.0-SNAPSHOT.jar
+HAZEL_CLUSTER=$1
 
-if [ "$1" = "build" ] ; then
+if [ "$1" = "-h" ] ; then
+	echo "Usage:"
+	echo "  run with default cluster - $0 "
+	echo "  run with specified cluster - $0 192.168.1.1:7701,192.168.1.10:7701"
+	exit -1
+fi
 
 	# compile section
-	javac -classpath $CLASS_PATH hazelcli.java
+echo "Compiling ..."
+javac -classpath $CLASS_PATH hazelcli.java
 
-
-elif [ "$1" = '' ] ; then
-
-	# run section
-	echo "Compiling ..."
-	javac -classpath $CLASS_PATH hazelcli.java
-	if [ $? -eq 0 ]; then
-		echo "Succeed compile"
-		echo "Running ..."
-		java -classpath $CLASS_PATH hazelcli
-	else
-		echo "Fail compile"
-	fi
-	
+if [ $? -eq 0 ]; then
+    echo "Succeed compile"
+    echo "Running ..."
+    #echo "java -classpath $CLASS_PATH hazelcli $HAZEL_CLUSTER"
+    java -classpath $CLASS_PATH hazelcli $HAZEL_CLUSTER
 else
-	echo "Usage:"
-	echo "  run - $0"
-	echo "  compile - $0 build"
+    echo "Fail compile"
+    exit -1
 fi
+exit 0
+

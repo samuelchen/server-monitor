@@ -28,6 +28,11 @@ public class hazelcli {
 		String group = "101";
 		String keystr = "Monitor.DB.CheckPoint";
 
+		if (args.length > 0) {
+		    servers = args[0];
+		    log(String.format("cluster servers: %s", servers));
+		}
+
 		MemberPreferenceKey key = new MemberPreferenceKey(memid, group, keystr);
 		//MemberPreferenceKey key = new MemberPreferenceKey("-10", "101", "SolrIndex.member");
 
