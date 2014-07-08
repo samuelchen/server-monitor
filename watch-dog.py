@@ -448,7 +448,7 @@ def sendalert(alerts, attachments=[], is_all_fail=False):
     if is_all_fail:
         emails = ALL_FAIL_NOTIFICATIONS['emails']
 
-    p = subprocess.Popen(['hostname'], cwd=workpath, stdout=subprocess.PIPE)
+    p = subprocess.Popen(['hostname'], stdout=subprocess.PIPE)
     hostname = p.stdout.read()
 
     report = StringIO()
