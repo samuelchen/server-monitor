@@ -448,6 +448,8 @@ def sendalert(alerts, attachments=[], is_all_fail=False):
     if is_all_fail:
         emails = ALL_FAIL_NOTIFICATIONS['emails']
 
+    p = subprocess.Popen(['hostname'], cwd=workpath, stdout=subprocess.PIPE)
+    hostname = p.stdout.read()
 
     report = StringIO()
     for x in alerts:
@@ -456,9 +458,9 @@ def sendalert(alerts, attachments=[], is_all_fail=False):
     body = report.getvalue()
     report.close()
 
-    subject = '[WARN] At least one tested failed - %s' % time.ctime()
+    subject = '[WARN] At least one tested failed - %s - %s' % (hostname, time.ctime())
     if is_all_fail:
-        subject = '[SERVE] All TEST FAILED for at least one service - %s' % time.ctime()
+        subject = '[SERVE] All TEST FAILED for a service - %s - %s' % (hostname, time.ctime())
 
     email.sender = 'Gagein <noreply@gagein.com>'
     retries = 3
