@@ -3,7 +3,6 @@
 # to run/compile hazelcli
 # by samuel
 
-#CLASS_PATH=.:./lib/hazelcast-3.1.3.jar:./lib/hazelcast-client.3.1.3.jar:./lib/emm_db-1.1-SNAPSHOT.jar:./lib/emm_common-1.1-SNAPSHOT.jar:./lib/gagein_cache-1.0-SNAPSHOT.jar
 CLASS_PATH=.:./lib-cache/hazelcast-all-3.1.3.jar:./lib/emm_db-1.1-SNAPSHOT.jar:./lib/emm_common-1.1-SNAPSHOT.jar:./lib/gagein_cache-1.0-SNAPSHOT.jar
 HAZEL_CLUSTER=$1
 USER=$2
